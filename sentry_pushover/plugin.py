@@ -27,7 +27,6 @@ along with Sentry-Pushover.  If not, see <http://www.gnu.org/licenses/>.
 
 from django import forms
 import logging
-from sentry.conf import settings
 from sentry.plugins import Plugin
 
 import sentry_pushover
@@ -90,7 +89,7 @@ class PushoverNotifications(Plugin):
 
         title = '%s: %s' % (event.get_level_display().upper(), event.error().split('\n')[0])
 
-        link = '%s/%s/group/%d/' % (settings.URL_PREFIX, group.project.slug, group.id)
+        link = group.get_absolute_url()
 
         message = 'Server: %s\n' % event.server_name
         message += 'Group: %s\n' % event.group
