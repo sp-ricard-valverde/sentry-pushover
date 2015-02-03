@@ -2,11 +2,13 @@
 '''
 Sentry-Pushover
 =============
-A [Sentry](https://www.getsentry.com/) plugin that sends notofications to a [Pushover](https://pushover.net).
+A [Sentry](https://www.getsentry.com/) plugin that sends notifications via
+[Pushover](https://pushover.net).
 
 License
 -------
 Copyright 2012 Janez Troha
+Copyright 2015 Sentry Team
 
 This file is part of Sentry-Pushover.
 
@@ -36,7 +38,7 @@ setup(
     license='GPL',
     packages=find_packages(exclude=['tests']),
     install_requires=[
-        'requests',
+        'sentry>=7.1.0',
     ],
     entry_points={
         'sentry.plugins': [

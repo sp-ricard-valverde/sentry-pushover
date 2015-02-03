@@ -24,42 +24,38 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Sentry-Pushover.  If not, see <http://www.gnu.org/licenses/>.
 '''
+import sentry_pushover
 
 from django import forms
-import logging
-from sentry.plugins import Plugin
-
-import sentry_pushover
-import requests
+from sentry.plugins.bases.notify import NotifyPlugin
+from sentry.http import safe_urlopen
+from sentry.utils import json
 
 
 class PushoverSettingsForm(forms.Form):
-
-    userkey = forms.CharField(help_text='Your user key. See https://pushover.net/')
-    apikey = forms.CharField(help_text='Application API token. See https://pushover.net/apps/')
-
-    choices = ((logging.CRITICAL, 'CRITICAL'), (logging.ERROR, 'ERROR'), (logging.WARNING,
-               'WARNING'), (logging.INFO, 'INFO'), (logging.DEBUG, 'DEBUG'))
-    severity = forms.ChoiceField(choices=choices,
-                                 help_text="Don't send notifications for events below this level.")
-
-    priority = \
-        forms.BooleanField(required=False,
-                           help_text='High-priority notifications, also bypasses quiet hours.')
+    userkey = forms.CharField(
+        help_text='Your user key. See https://pushover.net/')
+    apikey = forms.CharField(
+        help_text='Application API token. See https://pushover.net/apps/')
+    priority = forms.BooleanField(
+        required=False,
+        help_text='High-priority notifications, also bypasses quiet hours.')
 
 
-class PushoverNotifications(Plugin):
+class PushoverNotifications(NotifyPlugin):
+    # author = 'Janez Troha'
+    # author_url = 'http://dz0ny.info'
+    author = 'Sentry Team'
+    author_url = 'https://github.com/getsentry/sentry-pushover'
 
-    author = 'Janez Troha'
-    author_url = 'http://dz0ny.info'
     title = 'Pushover'
 
     conf_title = 'Pushover'
     conf_key = 'pushover'
 
     resource_links = [
-        ('Bug Tracker', 'https://github.com/dz0ny/sentry-pushover/issues'),
-        ('Source', 'https://github.com/dz0ny/sentry-pushover'),
+        ('Bug Tracker', 'https://github.com/getsentry/sentry-pushover/issues'),
+        ('Source', 'https://github.com/getsentry/sentry-pushover'),
     ]
 
     version = sentry_pushover.VERSION
@@ -68,53 +64,34 @@ class PushoverNotifications(Plugin):
     def can_enable_for_projects(self):
         return True
 
-    def is_setup(self, project):
-        return all(self.get_option(key, project) for key in ('userkey', 'apikey'))
+    def is_configured(self, project):
+        return all(
+            self.get_option(key, project)
+            for key in ('userkey', 'apikey')
+        )
 
-    def post_process(
-        self,
-        group,
-        event,
-        is_new,
-        is_sample,
-        **kwargs
-        ):
+    def notify(self, notification):
+        event = notification.event
+        group = event.group
+        project = group.project
 
-        if not is_new or not self.is_setup(event.project):
-            return
-
-        # https://github.com/getsentry/sentry/blob/master/src/sentry/models.py#L353
-        if event.level < int(self.get_option('severity', event.project)):
-            return
-
-        title = '%s: %s' % (event.get_level_display().upper(), event.error().split('\n')[0])
-
+        title = '%s: %s' % (project.name, group.title)
         link = group.get_absolute_url()
 
-        message = 'Server: %s\n' % event.server_name
-        message += 'Group: %s\n' % event.group
-        message += 'Logger: %s\n' % event.logger
-        message += 'Message: %s\n' % event.message
+        tags = event.get_tags()
 
-        self.send_notification(title, message, link, event)
-
-    def send_notification(
-        self,
-        title,
-        message,
-        link,
-        event,
-        ):
+        message = event.message + '\n'
+        if tags:
+            message = 'Tags: %s\n' % (', '.join('%s=%s' for (k, v) in tags))
 
         # see https://pushover.net/api
-
-        params = {
-            'user': self.get_option('userkey', event.project),
-            'token': self.get_option('apikey', event.project),
+        data = json.dumps({
+            'user': self.get_option('userkey', project),
+            'token': self.get_option('apikey', project),
             'message': message,
             'title': title,
             'url': link,
-            'url_title': 'More info',
-            'priority': self.get_option('priority', event.project),
-            }
-        requests.post('https://api.pushover.net/1/messages.json', params=params)
+            'url_title': 'Details',
+            'priority': self.get_option('priority', project),
+        })
+        safe_urlopen('https://api.pushover.net/1/messages.json', data=data)
