@@ -52,6 +52,7 @@ class PushoverNotifications(NotifyPlugin):
 
     conf_title = 'Pushover'
     conf_key = 'pushover'
+    slug = 'pushover'
 
     resource_links = [
         ('Bug Tracker', 'https://github.com/getsentry/sentry-pushover/issues'),
