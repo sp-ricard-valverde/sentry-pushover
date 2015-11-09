@@ -24,6 +24,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Sentry-Pushover.  If not, see <http://www.gnu.org/licenses/>.
 '''
+import urllib
 import sentry_pushover
 
 from django import forms
@@ -83,10 +84,13 @@ class PushoverNotifications(NotifyPlugin):
 
         message = event.message + '\n'
         if tags:
-            message = 'Tags: %s\n' % (', '.join('%s=%s' for (k, v) in tags))
+            message = 'Tags: %s\n' % (', '.join(
+                '%s=%s' % (k, v) for (k, v) in tags))
 
         # see https://pushover.net/api
-        data = json.dumps({
+        # We can no longer send JSON because pushover disabled incoming
+        # JSON data: http://updates.pushover.net/post/39822700181/
+        data = {
             'user': self.get_option('userkey', project),
             'token': self.get_option('apikey', project),
             'message': message,
@@ -94,5 +98,9 @@ class PushoverNotifications(NotifyPlugin):
             'url': link,
             'url_title': 'Details',
             'priority': self.get_option('priority', project),
-        })
-        safe_urlopen('https://api.pushover.net/1/messages.json', data=data)
+        }
+
+        rv = safe_urlopen('https://api.pushover.net/1/messages.json',
+                          data=data)
+        if not rv.ok:
+            raise RuntimeError('Failed to notify: %s' % rv)
