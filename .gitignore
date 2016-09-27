@@ -10,3 +10,4 @@ bin
 sdist
 develop-eggs
 pip-log.txt
+.idea
