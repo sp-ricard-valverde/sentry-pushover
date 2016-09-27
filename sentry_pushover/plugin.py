@@ -40,7 +40,7 @@ class PushoverSettingsForm(forms.Form):
         help_text='Application API token. See https://pushover.net/apps/')
     priority = forms.IntegerField(
         required=False,
-        default=0,
+        initial=0,
         max_value=2,
         min_value=-2,
         help_text='High-priority notifications, also bypasses quiet hours.')
