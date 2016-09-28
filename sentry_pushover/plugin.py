@@ -24,25 +24,31 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Sentry-Pushover.  If not, see <http://www.gnu.org/licenses/>.
 '''
-import urllib
-import sentry_pushover
-
 from django import forms
-from sentry.plugins.bases.notify import NotifyPlugin
 from sentry.http import safe_urlopen
-from sentry.utils import json
+from sentry.plugins.bases.notify import NotifyPlugin
+
+import sentry_pushover
 
 
 class PushoverSettingsForm(forms.Form):
-    userkey = forms.CharField(
+    groupkey = forms.CharField(
         help_text='Your user key. See https://pushover.net/')
     apikey = forms.CharField(
         help_text='Application API token. See https://pushover.net/apps/')
-    priority = forms.IntegerField(
+    subscription = forms.CharField(
+        help_text='The group subscription Url. You should visit this if you want to get Pushover notifications from '
+                  'this project')
+    priority = forms.ChoiceField(
         required=False,
-        initial=0,
-        max_value=2,
-        min_value=-2,
+        initial='0',
+        choices=[
+            ('-2', 'Lowest'),
+            ('-1', 'Low'),
+            ('0', 'Normal'),
+            ('1', 'High'),
+            ('2', 'Emergency'),
+        ],
         help_text='High-priority notifications, also bypasses quiet hours.')
 
 
@@ -72,7 +78,7 @@ class PushoverNotifications(NotifyPlugin):
     def is_configured(self, project):
         return all(
             self.get_option(key, project)
-            for key in ('userkey', 'apikey')
+            for key in ('groupkey', 'subscription', 'apikey')
         )
 
     def notify(self, notification):
@@ -94,7 +100,7 @@ class PushoverNotifications(NotifyPlugin):
         # We can no longer send JSON because pushover disabled incoming
         # JSON data: http://updates.pushover.net/post/39822700181/
         data = {
-            'user': self.get_option('userkey', project),
+            'user': self.get_option('groupkey', project),
             'token': self.get_option('apikey', project),
             'message': message,
             'title': title,
