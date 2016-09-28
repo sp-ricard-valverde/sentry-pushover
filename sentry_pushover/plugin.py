@@ -105,9 +105,9 @@ class PushoverNotifications(NotifyPlugin):
         link = group.get_absolute_url()
 
         tags = event.get_tags()
-        level = tags['level']
+        level = getattr(logging, event.get_tag('level').upper())
 
-        if level >= self.get_option('level', project):
+        if level >= int(self.get_option('level', project)):
 
             message = event.message + '\n'
             if tags:
@@ -130,6 +130,7 @@ class PushoverNotifications(NotifyPlugin):
             rv = safe_urlopen('https://api.pushover.net/1/messages.json',
                               data=data)
             if not rv.ok:
+                logger.error(rv.text)
                 raise RuntimeError('Failed to notify: %s' % rv)
         else:
 
