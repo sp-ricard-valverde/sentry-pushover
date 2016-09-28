@@ -24,11 +24,15 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Sentry-Pushover.  If not, see <http://www.gnu.org/licenses/>.
 '''
+import logging
+
 from django import forms
 from sentry.http import safe_urlopen
 from sentry.plugins.bases.notify import NotifyPlugin
 
 import sentry_pushover
+
+logger = logging.getLogger(__name__)
 
 
 class PushoverSettingsForm(forms.Form):
@@ -50,6 +54,17 @@ class PushoverSettingsForm(forms.Form):
             ('2', 'Emergency'),
         ],
         help_text='High-priority notifications, also bypasses quiet hours.')
+    level = forms.ChoiceField(
+        required=False,
+        initial=logging.ERROR,
+        choices=[
+            (logging.DEBUG, 'Debug'),
+            (logging.INFO, 'Info'),
+            (logging.WARNING, 'Warning'),
+            (logging.ERROR, 'Error'),
+            (logging.FATAL, 'Fatal'),
+        ],
+        help_text='The minimum level of the message to be sent to Pushover.')
 
 
 class PushoverNotifications(NotifyPlugin):
@@ -90,26 +105,32 @@ class PushoverNotifications(NotifyPlugin):
         link = group.get_absolute_url()
 
         tags = event.get_tags()
+        level = tags['level']
 
-        message = event.message + '\n'
-        if tags:
-            message = 'Tags: %s\n' % (', '.join(
-                '%s=%s' % (k, v) for (k, v) in tags))
+        if level >= self.get_option('level', project):
 
-        # see https://pushover.net/api
-        # We can no longer send JSON because pushover disabled incoming
-        # JSON data: http://updates.pushover.net/post/39822700181/
-        data = {
-            'user': self.get_option('groupkey', project),
-            'token': self.get_option('apikey', project),
-            'message': message,
-            'title': title,
-            'url': link,
-            'url_title': 'Details',
-            'priority': self.get_option('priority', project)
-        }
+            message = event.message + '\n'
+            if tags:
+                message = 'Tags: %s\n' % (', '.join(
+                    '%s=%s' % (k, v) for (k, v) in tags))
 
-        rv = safe_urlopen('https://api.pushover.net/1/messages.json',
-                          data=data)
-        if not rv.ok:
-            raise RuntimeError('Failed to notify: %s' % rv)
+            # see https://pushover.net/api
+            # We can no longer send JSON because pushover disabled incoming
+            # JSON data: http://updates.pushover.net/post/39822700181/
+            data = {
+                'user': self.get_option('groupkey', project),
+                'token': self.get_option('apikey', project),
+                'message': message,
+                'title': title,
+                'url': link,
+                'url_title': 'Details',
+                'priority': self.get_option('priority', project)
+            }
+
+            rv = safe_urlopen('https://api.pushover.net/1/messages.json',
+                              data=data)
+            if not rv.ok:
+                raise RuntimeError('Failed to notify: %s' % rv)
+        else:
+
+            logger.info("Pushover notification skipped due to project notification level configuration")
